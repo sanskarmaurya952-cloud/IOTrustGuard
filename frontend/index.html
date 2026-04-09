@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IOTrustGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <main class="container">
+      <section id="login-view" class="card">
+        <h1>IOTrustGuard Login</h1>
+        <form id="login-form">
+          <label>Username <input id="username" required /></label>
+          <label>Password <input id="password" type="password" required /></label>
+          <button type="submit">Login</button>
+        </form>
+        <p id="login-error" class="error"></p>
+      </section>
+
+      <section id="dashboard-view" class="hidden">
+        <header>
+          <h1>IoT Trust & Drift Analytics Dashboard</h1>
+          <button id="logout-btn">Logout</button>
+        </header>
+
+        <section class="grid metrics">
+          <article class="card"><h3>Total Devices</h3><p id="total-devices">0</p></article>
+          <article class="card"><h3>Analyzed Devices</h3><p id="analyzed-devices">0</p></article>
+          <article class="card"><h3>Average Trust</h3><p id="avg-trust">0</p></article>
+          <article class="card"><h3>Active Alerts</h3><p id="active-alerts">0</p></article>
+        </section>
+
+        <section class="grid two">
+          <article class="card">
+            <h2>Add IoT Device</h2>
+            <form id="device-form">
+              <label>Device Name <input id="device-name" required /></label>
+              <label>Source Type
+                <select id="device-type">
+                  <option value="ip">IP Camera URL</option>
+                  <option value="url">URL Stream</option>
+                  <option value="webcam">Local Webcam Index</option>
+                </select>
+              </label>
+              <label>IP/Source
+                <input id="device-source" required placeholder="rtsp://... or 0 for webcam" />
+              </label>
+              <button type="submit">Add Device</button>
+            </form>
+            <button id="ensure-webcam-btn" class="secondary">Add My Webcam (Index 0)</button>
+          </article>
+
+          <article class="card">
+            <h2>Alerts</h2>
+            <ul id="alerts-list" class="list"></ul>
+          </article>
+        </section>
+
+        <section class="grid two">
+          <article class="card">
+            <h2>Devices</h2>
+            <ul id="devices-list" class="list"></ul>
+          </article>
+          <article class="card">
+            <h2>Trust Score Graph</h2>
+            <canvas id="trust-chart"></canvas>
+          </article>
+        </section>
+      </section>
+    </main>
+    <script src="./script.js"></script>
+  </body>
+</html>
