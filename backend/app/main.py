@@ -224,7 +224,7 @@ def login(request: LoginRequest) -> dict[str, str]:
     if request.username != expected_user or request.password != expected_pass:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
     token = str(uuid.uuid4())
-    expires_at = datetime.now(UTC).replace(microsecond=0) + timedelta(minutes=SESSION_TTL_MINUTES)
+    expires_at = datetime.now(UTC) + timedelta(minutes=SESSION_TTL_MINUTES)
     store.sessions[token] = {
         "username": request.username,
         "expires_at": expires_at.isoformat(),
@@ -353,8 +353,6 @@ def frontend_index() -> FileResponse:
 
 @app.get("/{file_name}")
 def frontend_file(file_name: str) -> FileResponse:
-    if file_name == "api":
-        raise HTTPException(status_code=404, detail="Not found.")
     file_path = FRONTEND_DIR / file_name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Not found.")

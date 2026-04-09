@@ -36,6 +36,10 @@ function showDashboard() {
 }
 
 function showLogin() {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
   dashboardView.classList.add("hidden");
   loginView.classList.remove("hidden");
 }
@@ -189,9 +193,10 @@ el("devices-list").addEventListener("click", async (e) => {
 function startAutoRefresh() {
   if (refreshIntervalId) {
     clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
   }
   refreshIntervalId = setInterval(async () => {
-    if (!token || dashboardView.classList.contains("hidden")) return;
+    if (!token) return;
     await refreshDashboard();
     if (selectedDeviceId) {
       await loadHistory(selectedDeviceId);
