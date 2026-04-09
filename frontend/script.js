@@ -1,7 +1,9 @@
 const API_BASE = window.location.origin.replace(/\/$/, "") + "/api";
+const AUTO_REFRESH_INTERVAL = 15000;
 let token = localStorage.getItem("iot_token") || "";
 let trustChart;
 let selectedDeviceId = null;
+let refreshIntervalId = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -175,13 +177,16 @@ el("devices-list").addEventListener("click", async (e) => {
 });
 
 function startAutoRefresh() {
-  setInterval(async () => {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+  }
+  refreshIntervalId = setInterval(async () => {
     if (!token || dashboardView.classList.contains("hidden")) return;
     await refreshDashboard();
     if (selectedDeviceId) {
       await loadHistory(selectedDeviceId);
     }
-  }, 15000);
+  }, AUTO_REFRESH_INTERVAL);
 }
 
 async function init() {
@@ -207,3 +212,10 @@ async function init() {
 
 startAutoRefresh();
 init();
+
+window.addEventListener("beforeunload", () => {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+});

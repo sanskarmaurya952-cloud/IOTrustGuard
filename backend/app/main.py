@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -81,7 +82,25 @@ class DataStore:
 
 store = DataStore()
 auth_scheme = HTTPBearer()
-app = FastAPI(title="IOTrustGuard API", version="1.0.0")
+MAX_ALERTS = 200
+MAX_HISTORY_POINTS = 300
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if not store.devices:
+        dev_id = str(uuid.uuid4())
+        store.devices[dev_id] = Device(
+            id=dev_id,
+            name="Local Webcam",
+            source="0",
+            source_type="webcam",
+            created_at=now_iso(),
+        )
+    yield
+
+
+app = FastAPI(title="IOTrustGuard API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -126,7 +145,7 @@ def push_alert(device: Device, severity: str, message: str) -> None:
             message=message,
         ),
     )
-    del store.alerts[200:]
+    del store.alerts[MAX_ALERTS:]
 
 
 def analyze_device(device: Device) -> AnalysisPoint:
@@ -176,7 +195,7 @@ def analyze_device(device: Device) -> AnalysisPoint:
 
     device.last_analysis = point
     device.history.append(point)
-    device.history = device.history[-300:]
+    device.history = device.history[-MAX_HISTORY_POINTS:]
 
     if people_count == 0:
         push_alert(device, "high", "No person detected from camera feed.")
@@ -186,19 +205,6 @@ def analyze_device(device: Device) -> AnalysisPoint:
         push_alert(device, "low", f"Trust score drift detected: {drift}.")
 
     return point
-
-
-@app.on_event("startup")
-def startup() -> None:
-    if not store.devices:
-        dev_id = str(uuid.uuid4())
-        store.devices[dev_id] = Device(
-            id=dev_id,
-            name="Local Webcam",
-            source="0",
-            source_type="webcam",
-            created_at=now_iso(),
-        )
 
 
 @app.post("/api/auth/login")
