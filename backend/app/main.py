@@ -4,7 +4,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +71,7 @@ class DataStore:
     def __init__(self) -> None:
         self.devices: dict[str, Device] = {}
         self.alerts: list[AlertItem] = []
-        self.sessions: dict[str, str] = {}
+        self.sessions: dict[str, dict[str, str]] = {}
         self.model: YOLO | None = None
 
     def get_model(self) -> YOLO:
@@ -84,6 +84,7 @@ store = DataStore()
 auth_scheme = HTTPBearer()
 MAX_ALERTS = 200
 MAX_HISTORY_POINTS = 300
+SESSION_TTL_MINUTES = int(os.getenv("SESSION_TTL_MINUTES", "60"))
 
 
 @asynccontextmanager
@@ -102,11 +103,15 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="IOTrustGuard API", version="1.0.0", lifespan=lifespan)
 
+allowed_origins = [
+    origin.strip() for origin in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",") if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -129,9 +134,14 @@ def parse_source(device: Device) -> str | int:
 
 def authenticate(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> str:
     token = credentials.credentials
-    if token not in store.sessions:
+    session = store.sessions.get(token)
+    if not session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
-    return store.sessions[token]
+    expires_at = datetime.fromisoformat(session["expires_at"])
+    if datetime.now(UTC) >= expires_at:
+        store.sessions.pop(token, None)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+    return session["username"]
 
 
 def push_alert(device: Device, severity: str, message: str) -> None:
@@ -214,8 +224,18 @@ def login(request: LoginRequest) -> dict[str, str]:
     if request.username != expected_user or request.password != expected_pass:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
     token = str(uuid.uuid4())
-    store.sessions[token] = request.username
+    expires_at = datetime.now(UTC).replace(microsecond=0) + timedelta(minutes=SESSION_TTL_MINUTES)
+    store.sessions[token] = {
+        "username": request.username,
+        "expires_at": expires_at.isoformat(),
+    }
     return {"token": token, "username": request.username}
+
+
+@app.post("/api/auth/logout")
+def logout(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> dict[str, str]:
+    store.sessions.pop(credentials.credentials, None)
+    return {"status": "ok"}
 
 
 @app.get("/api/devices", response_model=list[DeviceResponse])
@@ -333,7 +353,7 @@ def frontend_index() -> FileResponse:
 
 @app.get("/{file_name}")
 def frontend_file(file_name: str) -> FileResponse:
-    if file_name.startswith("api"):
+    if file_name == "api":
         raise HTTPException(status_code=404, detail="Not found.")
     file_path = FRONTEND_DIR / file_name
     if not file_path.exists():

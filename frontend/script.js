@@ -129,12 +129,22 @@ el("login-form").addEventListener("submit", async (e) => {
     localStorage.setItem("iot_token", token);
     showDashboard();
     await refreshDashboard();
+    startAutoRefresh();
   } catch (err) {
     el("login-error").textContent = err.message;
   }
 });
 
-el("logout-btn").addEventListener("click", () => {
+el("logout-btn").addEventListener("click", async () => {
+  if (token) {
+    try {
+      await api("/auth/logout", { method: "POST", headers: headers() });
+    } catch (_err) {}
+  }
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
   token = "";
   localStorage.removeItem("iot_token");
   showLogin();
@@ -198,6 +208,7 @@ async function init() {
   try {
     showDashboard();
     await refreshDashboard();
+    startAutoRefresh();
     const devices = await api("/devices", { headers: headers() });
     if (devices.length) {
       selectedDeviceId = devices[0].id;
@@ -210,7 +221,6 @@ async function init() {
   }
 }
 
-startAutoRefresh();
 init();
 
 window.addEventListener("beforeunload", () => {
